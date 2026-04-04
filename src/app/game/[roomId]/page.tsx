@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Chalkboard from "@/components/game/Chalkboard";
 import PlayerBar from "@/components/game/PlayerBar";
@@ -8,6 +8,13 @@ import CaughtOverlay from "@/components/game/CaughtOverlay";
 import ResultScreen from "@/components/game/ResultScreen";
 import { useGameLoop } from "@/lib/game/useGameLoop";
 import type { RoundResult } from "@/lib/game/types";
+import {
+  playWarningSound,
+  playDangerSound,
+  playReliefSound,
+  playCaughtSound,
+  playSubmitSound,
+} from "@/lib/game/sounds";
 
 // Dynamic import tldraw (SSR not supported)
 const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
@@ -48,6 +55,25 @@ export default function GamePage() {
     return () => clearInterval(interval);
   }, [gameState.status, gameState.currentRound]);
 
+  // Sound effects on teacher state changes
+  const prevTeacherStateRef = useRef(teacherState);
+  useEffect(() => {
+    const prev = prevTeacherStateRef.current;
+    if (prev !== teacherState) {
+      if (teacherState === "tell") playWarningSound();
+      if (teacherState === "danger") playDangerSound();
+      prevTeacherStateRef.current = teacherState;
+    }
+  }, [teacherState]);
+
+  useEffect(() => {
+    if (showRelief) playReliefSound();
+  }, [showRelief]);
+
+  useEffect(() => {
+    if (caught) playCaughtSound();
+  }, [caught]);
+
   // Show result when round ends
   useEffect(() => {
     if (gameState.results.length > 0 && !gameState.currentRound) {
@@ -57,6 +83,7 @@ export default function GamePage() {
   }, [gameState.results, gameState.currentRound]);
 
   const handleSubmit = useCallback(async () => {
+    playSubmitSound();
     const result = await submitDrawing();
     if (result) {
       setLatestResult(result);

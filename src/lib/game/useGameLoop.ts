@@ -164,14 +164,32 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     }));
   }, []);
 
-  // Submit drawing (mock Gemini evaluation)
-  const submitDrawing = useCallback(async (): Promise<RoundResult | undefined> => {
+  // Submit drawing for Gemini evaluation
+  const submitDrawing = useCallback(async (imageBase64?: string): Promise<RoundResult | undefined> => {
     if (!gameState.currentRound) return;
 
     const submitTime = Date.now() - roundStartTime;
 
-    // Mock Gemini score (will be replaced by actual API call)
-    const mockScore = 5 + Math.random() * 5;
+    // Call server-side evaluation API
+    let playerScore = 5 + Math.random() * 5; // fallback
+    try {
+      if (imageBase64) {
+        const res = await fetch("/api/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            keyword: gameState.currentRound.keyword.word,
+            imageBase64,
+          }),
+        });
+        if (res.ok) {
+          const evalResult = await res.json();
+          playerScore = evalResult.score;
+        }
+      }
+    } catch {
+      // Use fallback score on any error
+    }
 
     const result: RoundResult = {
       roundNumber: gameState.currentRound.number,
@@ -180,7 +198,7 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
         {
           playerId: "local",
           nickname,
-          score: mockScore,
+          score: playerScore,
           time: submitTime,
           caught: false,
         },
