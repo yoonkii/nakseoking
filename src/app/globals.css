@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #faf6e8;
+  --surface: #ffffff;
+  --chalkboard: #2d5a3d;
+  --frame: #8B6914;
+  --danger: #c0392b;
+  --safe: #27ae60;
+  --warning: #f39c12;
+  --text: #333333;
+  --muted: #999999;
+  --line: #e0e0e0;
+  --margin-red: #ffb3b3;
+  --chalk-text: #e8e8d0;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-chalkboard: var(--chalkboard);
+  --color-frame: var(--frame);
+  --color-danger: var(--danger);
+  --color-safe: var(--safe);
+  --color-warning: var(--warning);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --font-jua: var(--font-jua);
+  --font-gaegu: var(--font-gaegu);
+  --font-pretendard: var(--font-pretendard);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-pretendard), -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-jua { font-family: var(--font-jua), sans-serif; }
+.font-gaegu { font-family: var(--font-gaegu), cursive; }
+.font-pretendard { font-family: var(--font-pretendard), -apple-system, sans-serif; }
