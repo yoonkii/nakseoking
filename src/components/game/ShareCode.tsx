@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 interface ShareCodeProps {
   code: string;
 }
 
-/**
- * Room code display with copy + Web Share API.
- */
 export default function ShareCode({ code }: ShareCodeProps) {
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const shareUrl = typeof window !== "undefined"
     ? `${window.location.origin}/join/${code}`
@@ -22,7 +21,6 @@ export default function ShareCode({ code }: ShareCodeProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const input = document.createElement("input");
       input.value = shareUrl;
       document.body.appendChild(input);
@@ -43,7 +41,6 @@ export default function ShareCode({ code }: ShareCodeProps) {
           url: shareUrl,
         });
       } catch {
-        // User cancelled or share failed, fall back to copy
         handleCopy();
       }
     } else {
@@ -52,29 +49,46 @@ export default function ShareCode({ code }: ShareCodeProps) {
   }, [code, shareUrl, handleCopy]);
 
   return (
-    <div className="text-center">
+    <div className="text-center w-full max-w-[320px]">
       {/* Code display */}
-      <div
-        className="border-[3px] border-[var(--text)] rounded-[4px] bg-white py-3 px-6 mb-3 inline-block"
-      >
+      <div className="border-[3px] border-[var(--text)] rounded-[4px] bg-white py-3 px-6 mb-3">
         <div className="text-[10px]" style={{ color: "var(--muted)" }}>방 코드</div>
         <div className="font-jua text-3xl tracking-[6px]">{code}</div>
       </div>
 
+      {/* QR Code toggle */}
+      {showQR && (
+        <div className="border-[3px] border-[var(--text)] rounded-[4px] bg-white p-4 mb-3 flex justify-center">
+          <QRCodeSVG
+            value={shareUrl}
+            size={160}
+            bgColor="#ffffff"
+            fgColor="#333333"
+            level="M"
+          />
+        </div>
+      )}
+
       {/* Action buttons */}
-      <div className="flex gap-2 justify-center">
+      <div className="flex gap-2 justify-center flex-wrap">
         <button
           onClick={handleCopy}
-          className="border-[2px] border-[var(--text)] rounded-[4px] px-4 py-2 text-sm bg-white"
+          className="border-[2px] border-[var(--text)] rounded-[4px] px-3 py-2 text-xs bg-white"
         >
-          {copied ? "✅ 복사됨!" : "📋 코드 복사"}
+          {copied ? "✅ 복사됨!" : "📋 복사"}
+        </button>
+        <button
+          onClick={() => setShowQR(!showQR)}
+          className="border-[2px] border-[var(--text)] rounded-[4px] px-3 py-2 text-xs bg-white"
+        >
+          {showQR ? "🔼 QR 닫기" : "📱 QR코드"}
         </button>
         <button
           onClick={handleShare}
-          className="border-[2px] border-[var(--text)] rounded-[4px] px-4 py-2 text-sm text-white"
+          className="border-[2px] border-[var(--text)] rounded-[4px] px-3 py-2 text-xs text-white"
           style={{ background: "var(--safe)" }}
         >
-          📤 공유하기
+          📤 공유
         </button>
       </div>
     </div>
