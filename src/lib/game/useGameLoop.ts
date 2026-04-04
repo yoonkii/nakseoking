@@ -30,12 +30,12 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
   const submitDrawingRef = useRef<() => Promise<RoundResult | undefined>>(undefined!);
   const teacherStateRef = useRef<TeacherState>("safe");
 
-  // Start a new round
-  const startRound = useCallback(() => {
-    const nextRound = gameState.roundNumber + 1;
-    const usedKeywords = gameState.results.map((r) => r.keyword);
-    const [keyword] = pickKeywords(1, usedKeywords);
-    const timeline = generateTimeline({ roundNumber: nextRound, totalRounds });
+  // Start a new round. If prepared data is passed, use it (from prepareRound).
+  // This ensures the keyword shown in countdown matches the actual game keyword.
+  const startRound = useCallback((prepared?: { keyword: { word: string; emoji: string }; timeline: any[]; roundNumber: number }) => {
+    const nextRound = prepared?.roundNumber ?? gameState.roundNumber + 1;
+    const keyword = prepared?.keyword ?? pickKeywords(1, gameState.results.map((r) => r.keyword))[0];
+    const timeline = prepared?.timeline ?? generateTimeline({ roundNumber: nextRound, totalRounds });
     const now = Date.now();
 
     setGameState((prev) => ({

@@ -10,12 +10,33 @@ function getAudioContext(): AudioContext {
   if (!audioCtx) {
     audioCtx = new AudioContext();
   }
+  // Resume if suspended (browser autoplay policy)
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
   return audioCtx;
+}
+
+/**
+ * Call this on the first user interaction (click/tap) to unlock audio.
+ * Browsers block AudioContext until a user gesture.
+ */
+export function unlockAudio(): void {
+  if (typeof window === "undefined") return;
+  const ctx = getAudioContext();
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+  // Play a silent buffer to fully unlock on iOS
+  const buffer = ctx.createBuffer(1, 1, 22050);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start(0);
 }
 
 function shouldPlaySound(): boolean {
   if (typeof window === "undefined") return false;
-  // Respect reduced motion preference
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
   return true;
 }

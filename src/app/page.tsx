@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import StatsBadge from "@/components/game/StatsBadge";
+import { unlockAudio } from "@/lib/game/sounds";
 
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -24,7 +25,7 @@ export default function Home() {
     return (
       <div
         className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 cursor-pointer select-none"
-        onClick={() => setScreen("menu")}
+        onClick={() => { unlockAudio(); setScreen("menu"); }}
       >
         <div
           className="bg-[var(--chalkboard)] border-[6px] border-[var(--frame)] rounded-[4px] p-12 text-center"

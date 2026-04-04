@@ -17,7 +17,7 @@ import type { DrawingCanvasHandle } from "@/components/game/DrawingCanvas";
 import type { PlayerData } from "@/lib/supabase/rooms";
 import {
   playWarningSound, playDangerSound, playReliefSound,
-  playCaughtSound, playSubmitSound,
+  playCaughtSound, playSubmitSound, unlockAudio,
 } from "@/lib/game/sounds";
 
 const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
@@ -50,6 +50,7 @@ export default function GamePage() {
   const [phase, setPhase] = useState<"lobby" | "countdown" | "playing" | "scoring" | "result">("lobby");
   const [pendingKeyword, setPendingKeyword] = useState<{ word: string; emoji: string } | null>(null);
   const [pendingRoundNum, setPendingRoundNum] = useState(1);
+  const pendingPreparedRef = useRef<ReturnType<typeof prepareRound> | null>(null);
 
   // Supabase multiplayer state
   const [onlinePlayers, setOnlinePlayers] = useState<PlayerData[]>([]);
@@ -106,9 +107,11 @@ export default function GamePage() {
     }
   }, [gameState.results, gameState.currentRound, phase]);
 
-  // Start game: show countdown then start
+  // Start game: unlock audio, prepare round data, show countdown, then start with SAME data
   const handleStartGame = useCallback(() => {
+    unlockAudio();
     const prepared = prepareRound();
+    pendingPreparedRef.current = prepared;
     setPendingKeyword(prepared.keyword);
     setPendingRoundNum(prepared.roundNumber);
     setPhase("countdown");
@@ -118,7 +121,9 @@ export default function GamePage() {
     setPhase("playing");
     canvasRef.current?.clear();
     setTimer(60);
-    startRound();
+    // Pass the same prepared data so keyword matches what was shown in countdown
+    startRound(pendingPreparedRef.current ?? undefined);
+    pendingPreparedRef.current = null;
   }, [startRound]);
 
   const handleSubmit = useCallback(async () => {
@@ -129,8 +134,15 @@ export default function GamePage() {
     let imageBase64: string | undefined;
     try {
       const img = await canvasRef.current?.exportImage();
-      if (img) imageBase64 = img;
-    } catch {}
+      if (img) {
+        imageBase64 = img;
+        console.log(`[submit] Canvas exported: ${img.length} chars`);
+      } else {
+        console.warn("[submit] Canvas export returned null (empty canvas?)");
+      }
+    } catch (e) {
+      console.error("[submit] Canvas export error:", e);
+    }
 
     await submitDrawing(imageBase64);
     setSubmitting(false);
@@ -138,6 +150,7 @@ export default function GamePage() {
 
   const handleNextRound = useCallback(() => {
     const prepared = prepareRound();
+    pendingPreparedRef.current = prepared;
     setPendingKeyword(prepared.keyword);
     setPendingRoundNum(prepared.roundNumber);
     setPhase("countdown");

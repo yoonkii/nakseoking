@@ -77,33 +77,47 @@ JSON으로만 응답: {"match": true/false, "score": 0-10, "comment": "한국어
     );
 
     if (!response.ok) {
-      console.error("Gemini API error:", response.status, await response.text());
-      // Auto-pass on API error
+      const errBody = await response.text();
+      console.error("[evaluate] Gemini API error:", response.status, errBody);
       return NextResponse.json({
         match: true,
         score: 5,
-        comment: "선생님이 바빠서 채점 못했습니다.",
+        comment: "선생님이 바빠서 채점 못했습니다. (API 오류)",
       });
     }
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("[evaluate] Gemini raw response:", text?.substring(0, 200));
 
     if (!text) {
+      console.warn("[evaluate] No text in Gemini response");
       return NextResponse.json({
         match: true,
         score: 5,
-        comment: "선생님이 바빠서 채점 못했습니다.",
+        comment: "선생님이 바빠서 채점 못했습니다. (응답 없음)",
       });
     }
 
-    const result = JSON.parse(text);
+    try {
+      const result = JSON.parse(text);
+      const score = Math.min(10, Math.max(0, Number(result.score) || 5));
+      const comment = String(result.comment || "평가 완료");
+      console.log(`[evaluate] Score: ${score}, Comment: ${comment}`);
 
-    return NextResponse.json({
-      match: Boolean(result.match),
-      score: Math.min(10, Math.max(0, Number(result.score) || 5)),
-      comment: String(result.comment || "평가 완료"),
-    });
+      return NextResponse.json({
+        match: Boolean(result.match),
+        score,
+        comment,
+      });
+    } catch (parseErr) {
+      console.error("[evaluate] JSON parse error:", parseErr, "raw:", text);
+      return NextResponse.json({
+        match: true,
+        score: 5,
+        comment: "선생님이 바빠서 채점 못했습니다. (파싱 오류)",
+      });
+    }
   } catch (error) {
     console.error("Evaluation error:", error);
     // Auto-pass on any error
