@@ -7,6 +7,7 @@ import PlayerBar from "@/components/game/PlayerBar";
 import CaughtOverlay from "@/components/game/CaughtOverlay";
 import ResultScreen from "@/components/game/ResultScreen";
 import { useGameLoop } from "@/lib/game/useGameLoop";
+import type { RoundResult } from "@/lib/game/types";
 
 // Dynamic import tldraw (SSR not supported)
 const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
@@ -35,7 +36,7 @@ export default function GamePage() {
 
   const [timer, setTimer] = useState(60);
   const [showResult, setShowResult] = useState(false);
-  const [latestResult, setLatestResult] = useState<any>(null);
+  const [latestResult, setLatestResult] = useState<RoundResult | null>(null);
 
   // Timer countdown
   useEffect(() => {

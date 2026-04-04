@@ -60,11 +60,11 @@ export default function Home() {
 
       <button
         onClick={() => {
-          if (nickname.length < 2) return;
+          if (nickname.trim().length < 2) return;
           const code = generateCode();
           alert(`방 생성! 코드: ${code}`);
         }}
-        disabled={nickname.length < 2}
+        disabled={nickname.trim().length < 2}
         className="w-full text-white border-[3px] border-[var(--text)] rounded-[4px] p-3 font-jua text-lg disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         style={{ background: "var(--safe)" }}
       >
@@ -86,10 +86,10 @@ export default function Home() {
         />
         <button
           onClick={() => {
-            if (nickname.length < 2 || joinCode.length !== 4) return;
+            if (nickname.trim().length < 2 || joinCode.length !== 4) return;
             alert(`방 참가: ${joinCode}`);
           }}
-          disabled={nickname.length < 2 || joinCode.length !== 4}
+          disabled={nickname.trim().length < 2 || joinCode.length !== 4}
           className="text-white border-[3px] border-[var(--text)] rounded-[4px] px-6 font-jua text-lg disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: "var(--warning)" }}
         >

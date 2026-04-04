@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { generateTimeline, getStateAtTime, type TeacherState, type TimelineEvent } from "./timeline";
+import { generateTimeline, getStateAtTime, type TeacherState } from "./timeline";
 import { pickKeywords } from "./keywords";
 import type { Player, GameState, RoundResult, PlayerActivity } from "./types";
 import { PLAYER_AVATARS } from "./types";
@@ -19,14 +19,15 @@ interface UseGameLoopOptions {
 export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
   const [gameState, setGameState] = useState<GameState>(() => createInitialState(nickname, totalRounds));
   const [teacherState, setTeacherState] = useState<TeacherState>("safe");
-  const [prevTeacherState, setPrevTeacherState] = useState<TeacherState>("safe");
-  const [isDrawing, setIsDrawing] = useState(false);
   const [caught, setCaught] = useState(false);
   const [showRelief, setShowRelief] = useState(false);
   const [roundStartTime, setRoundStartTime] = useState<number>(0);
+  const [roundTimedOut, setRoundTimedOut] = useState(false);
 
   const lastStrokeTimeRef = useRef<number>(0);
   const animFrameRef = useRef<number>(0);
+  const lastProcessedEventRef = useRef<number>(-1);
+  const submitDrawingRef = useRef<() => Promise<RoundResult | undefined>>(undefined!);
 
   // Start a new round
   const startRound = useCallback(() => {
@@ -54,11 +55,12 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     }));
 
     setTeacherState("safe");
-    setPrevTeacherState("safe");
     setCaught(false);
     setShowRelief(false);
+    setRoundTimedOut(false);
     setRoundStartTime(now);
     lastStrokeTimeRef.current = 0;
+    lastProcessedEventRef.current = -1;
   }, [gameState.roundNumber, gameState.results, totalRounds]);
 
   // Game loop: update teacher state based on timeline
@@ -71,38 +73,41 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     const tick = () => {
       if (!running) return;
       const elapsed = Date.now() - roundStartTime;
+
+      // Check if round is over (60 seconds)
+      if (elapsed >= 60000) {
+        setRoundTimedOut(true);
+        return;
+      }
+
       const newState = getStateAtTime(timeline, elapsed);
 
       setTeacherState((prev) => {
         if (prev !== newState) {
-          setPrevTeacherState(prev);
-
-          // Check if player was caught (transition to danger while drawing)
-          if (newState === "danger" && lastStrokeTimeRef.current > 0) {
-            const dangerEvent = timeline.find(
-              (e) => e.state === "danger" && e.at <= elapsed && e.at > elapsed - 500
-            );
-            if (dangerEvent) {
-              const timeSinceStroke = dangerEvent.at - (lastStrokeTimeRef.current - roundStartTime);
-              if (timeSinceStroke < 300) {
-                setCaught(true);
-              }
-            }
-          }
-
-          // Relief feedback: danger → safe
-          if (prev === "danger" && newState === "safe") {
-            setShowRelief(true);
-            setTimeout(() => setShowRelief(false), 500);
-          }
+          return newState;
         }
-        return newState;
+        return prev;
       });
 
-      // Check if round is over (60 seconds)
-      if (elapsed >= 60000) {
-        // Round over without submission = auto-submit
-        return;
+      // Check for new danger events (catch detection)
+      for (let i = lastProcessedEventRef.current + 1; i < timeline.length; i++) {
+        const event = timeline[i];
+        if (event.at > elapsed) break;
+
+        if (event.state === "danger" && i > lastProcessedEventRef.current) {
+          lastProcessedEventRef.current = i;
+
+          // Check if player was drawing within 300ms of danger start
+          if (lastStrokeTimeRef.current > 0) {
+            const strokeElapsed = lastStrokeTimeRef.current - roundStartTime;
+            const timeSinceStroke = event.at - strokeElapsed;
+            if (timeSinceStroke >= 0 && timeSinceStroke < 300) {
+              setCaught(true);
+            }
+          }
+        } else {
+          lastProcessedEventRef.current = i;
+        }
       }
 
       animFrameRef.current = requestAnimationFrame(tick);
@@ -116,12 +121,41 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     };
   }, [gameState.status, gameState.currentRound, roundStartTime]);
 
+  // Relief feedback: danger → safe transition
+  useEffect(() => {
+    if (teacherState === "safe") {
+      // Check if we just came from danger (by checking timeline)
+      if (gameState.currentRound && roundStartTime) {
+        const elapsed = Date.now() - roundStartTime;
+        const timeline = gameState.currentRound.timeline;
+        // Find the most recent event before now
+        for (let i = timeline.length - 1; i >= 0; i--) {
+          if (timeline[i].at <= elapsed) {
+            // If this safe state was preceded by a danger state
+            if (i > 0 && timeline[i].state === "safe" && timeline[i - 1].state === "danger") {
+              setShowRelief(true);
+              const timer = setTimeout(() => setShowRelief(false), 500);
+              return () => clearTimeout(timer);
+            }
+            break;
+          }
+        }
+      }
+    }
+  }, [teacherState, gameState.currentRound, roundStartTime]);
+
+  // Auto-submit when round times out
+  useEffect(() => {
+    if (roundTimedOut && submitDrawingRef.current) {
+      submitDrawingRef.current();
+      setRoundTimedOut(false);
+    }
+  }, [roundTimedOut]);
+
   // Record stroke activity
   const onStroke = useCallback(() => {
     lastStrokeTimeRef.current = Date.now();
-    setIsDrawing(true);
 
-    // Update player activity
     setGameState((prev) => ({
       ...prev,
       players: prev.players.map((p) =>
@@ -130,26 +164,14 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     }));
   }, []);
 
-  // Record stop drawing
-  const onStopDrawing = useCallback(() => {
-    setIsDrawing(false);
-    setGameState((prev) => ({
-      ...prev,
-      players: prev.players.map((p) =>
-        p.id === "local" ? { ...p, activity: "stopped" as PlayerActivity } : p
-      ),
-    }));
-  }, []);
-
   // Submit drawing (mock Gemini evaluation)
-  const submitDrawing = useCallback(async () => {
+  const submitDrawing = useCallback(async (): Promise<RoundResult | undefined> => {
     if (!gameState.currentRound) return;
 
     const submitTime = Date.now() - roundStartTime;
 
     // Mock Gemini score (will be replaced by actual API call)
     const mockScore = 5 + Math.random() * 5;
-    const passed = mockScore >= 5;
 
     const result: RoundResult = {
       roundNumber: gameState.currentRound.number,
@@ -162,7 +184,6 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
           time: submitTime,
           caught: false,
         },
-        // Mock bot results
         ...gameState.players
           .filter((p) => p.id !== "local")
           .map((p) => ({
@@ -189,23 +210,21 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     return result;
   }, [gameState.currentRound, gameState.players, roundStartTime, nickname, totalRounds]);
 
+  // Keep ref in sync for auto-submit
+  submitDrawingRef.current = submitDrawing;
+
   return {
     gameState,
     teacherState,
-    prevTeacherState,
-    isDrawing,
     caught,
     showRelief,
     startRound,
     onStroke,
-    onStopDrawing,
     submitDrawing,
-    roundElapsed: roundStartTime ? Date.now() - roundStartTime : 0,
   };
 }
 
 function createInitialState(nickname: string, totalRounds: number): GameState {
-  // Create local player + 3 bot players for testing
   const botNames = ["민수", "지은", "정호"];
   const players: Player[] = [
     {

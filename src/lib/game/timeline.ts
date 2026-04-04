@@ -32,8 +32,6 @@ export function generateTimeline(options: TimelineOptions): TimelineEvent[] {
   const progress = (roundNumber - 1) / Math.max(totalRounds - 1, 1); // 0 to 1
   const safeMin = lerp(8000, 5000, progress);
   const safeMax = lerp(15000, 8000, progress);
-  const tellDuration = randomBetween(500, 1000);
-  const dangerDuration = randomBetween(3000, 5000);
   const fakeTellChance = customFakeTellChance ?? lerp(0.1, 0.35, progress);
 
   // Start with SAFE
@@ -86,19 +84,6 @@ export function getStateAtTime(timeline: TimelineEvent[], timeOffset: number): T
     }
   }
   return state;
-}
-
-/**
- * Check if a player was caught (drawing during DANGER).
- * Returns true if the last stroke was within graceMs before DANGER started.
- */
-export function checkCaught(
-  timeline: TimelineEvent[],
-  lastStrokeTime: number,
-  dangerStartTime: number,
-  graceMs: number = 300
-): boolean {
-  return dangerStartTime - lastStrokeTime < graceMs;
 }
 
 function randomBetween(min: number, max: number): number {
