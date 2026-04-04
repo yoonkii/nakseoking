@@ -231,6 +231,28 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
   // Keep ref in sync for auto-submit
   submitDrawingRef.current = submitDrawing;
 
+  // Reset entire game to lobby state
+  const resetGame = useCallback(() => {
+    setGameState(createInitialState(nickname, totalRounds));
+    setTeacherState("safe");
+    setCaught(false);
+    setShowRelief(false);
+    setRoundTimedOut(false);
+    setRoundStartTime(0);
+    lastStrokeTimeRef.current = 0;
+    lastProcessedEventRef.current = -1;
+  }, [nickname, totalRounds]);
+
+  // Prepare next round (generates keyword + timeline but doesn't start yet)
+  const prepareRound = useCallback(() => {
+    const nextRound = gameState.roundNumber + 1;
+    const usedKeywords = gameState.results.map((r) => r.keyword);
+    const [keyword] = pickKeywords(1, usedKeywords);
+    const timeline = generateTimeline({ roundNumber: nextRound, totalRounds });
+
+    return { keyword, timeline, roundNumber: nextRound };
+  }, [gameState.roundNumber, gameState.results, totalRounds]);
+
   return {
     gameState,
     teacherState,
@@ -239,6 +261,8 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     startRound,
     onStroke,
     submitDrawing,
+    resetGame,
+    prepareRound,
   };
 }
 

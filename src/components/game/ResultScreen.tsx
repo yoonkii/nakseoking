@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import type { RoundResult } from "@/lib/game/types";
+import { playVictorySound } from "@/lib/game/sounds";
 
 interface ResultScreenProps {
   result: RoundResult;
@@ -17,6 +19,10 @@ export default function ResultScreen({
 }: ResultScreenProps) {
   const winner = result.rankings[0];
   const allCaught = result.rankings.every((r) => r.caught);
+
+  useEffect(() => {
+    if (!allCaught) playVictorySound();
+  }, [allCaught]);
 
   return (
     <div className="flex flex-col items-center p-6 max-w-[500px] mx-auto w-full min-h-screen justify-center">
