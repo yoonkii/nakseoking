@@ -39,3 +39,43 @@ body {
 .font-jua { font-family: var(--font-jua), sans-serif; }
 .font-gaegu { font-family: var(--font-gaegu), cursive; }
 .font-pretendard { font-family: var(--font-pretendard), -apple-system, sans-serif; }
+
+/* Game animations */
+@keyframes game-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+
+@keyframes game-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+/* Prevent pull-to-refresh and overscroll on mobile during gameplay */
+.game-active {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+/* tldraw overrides: hide watermark, match notebook style */
+.tl-container {
+  background: transparent !important;
+}
+
+.tl-background {
+  background: transparent !important;
+}
+
+/* Prevent text selection during gameplay */
+.select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse { animation: none; }
+  * { animation-duration: 0.01ms !important; }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -12,6 +13,7 @@ function generateCode() {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [screen, setScreen] = useState<"splash" | "lobby">("splash");
   const [nickname, setNickname] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -19,7 +21,7 @@ export default function Home() {
   if (screen === "splash") {
     return (
       <div
-        className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 cursor-pointer"
+        className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 cursor-pointer select-none"
         onClick={() => setScreen("lobby")}
       >
         <div
@@ -43,6 +45,18 @@ export default function Home() {
     );
   }
 
+  const handleCreateRoom = () => {
+    if (nickname.trim().length < 2) return;
+    const code = generateCode();
+    // Navigate to game page with room code
+    router.push(`/game/${code}?nickname=${encodeURIComponent(nickname.trim())}`);
+  };
+
+  const handleJoinRoom = () => {
+    if (nickname.trim().length < 2 || joinCode.length !== 4) return;
+    router.push(`/game/${joinCode}?nickname=${encodeURIComponent(nickname.trim())}`);
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 max-w-[500px] mx-auto w-full">
       <h1 className="font-jua text-3xl mb-1">낙서왕 ✏️</h1>
@@ -56,14 +70,11 @@ export default function Home() {
         onChange={(e) => setNickname(e.target.value.slice(0, 8))}
         placeholder="닉네임 (2~8자)"
         className="w-full border-[3px] border-[var(--text)] rounded-[4px] p-3 text-center text-lg bg-white mb-6"
+        onKeyDown={(e) => e.key === "Enter" && handleCreateRoom()}
       />
 
       <button
-        onClick={() => {
-          if (nickname.trim().length < 2) return;
-          const code = generateCode();
-          alert(`방 생성! 코드: ${code}`);
-        }}
+        onClick={handleCreateRoom}
         disabled={nickname.trim().length < 2}
         className="w-full text-white border-[3px] border-[var(--text)] rounded-[4px] p-3 font-jua text-lg disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         style={{ background: "var(--safe)" }}
@@ -83,12 +94,10 @@ export default function Home() {
           placeholder="코드"
           maxLength={4}
           className="flex-1 border-[3px] border-[var(--text)] rounded-[4px] p-3 text-center text-xl tracking-[4px] bg-white"
+          onKeyDown={(e) => e.key === "Enter" && handleJoinRoom()}
         />
         <button
-          onClick={() => {
-            if (nickname.trim().length < 2 || joinCode.length !== 4) return;
-            alert(`방 참가: ${joinCode}`);
-          }}
+          onClick={handleJoinRoom}
           disabled={nickname.trim().length < 2 || joinCode.length !== 4}
           className="text-white border-[3px] border-[var(--text)] rounded-[4px] px-6 font-jua text-lg disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: "var(--warning)" }}

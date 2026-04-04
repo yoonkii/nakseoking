@@ -27,6 +27,23 @@ const pretendard = localFont({
 export const metadata: Metadata = {
   title: "낙서왕 ✏️ 선생님 몰래 낙서 배틀!",
   description: "고등학교 교실에서 선생님 몰래 낙서하는 멀티플레이어 웹 게임",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false, // Prevent zoom during drawing
+  },
+  themeColor: "#faf6e8",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "낙서왕",
+  },
+  openGraph: {
+    title: "낙서왕 ✏️",
+    description: "선생님 몰래 낙서 배틀! 친구들과 함께하는 멀티플레이어 드로잉 게임",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

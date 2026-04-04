@@ -8,6 +8,7 @@ import CaughtOverlay from "@/components/game/CaughtOverlay";
 import ResultScreen from "@/components/game/ResultScreen";
 import { useGameLoop } from "@/lib/game/useGameLoop";
 import type { RoundResult } from "@/lib/game/types";
+import type { DrawingCanvasHandle } from "@/components/game/DrawingCanvas";
 import {
   playWarningSound,
   playDangerSound,
@@ -16,7 +17,6 @@ import {
   playSubmitSound,
 } from "@/lib/game/sounds";
 
-// Dynamic import tldraw (SSR not supported)
 const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
   ssr: false,
   loading: () => (
@@ -30,7 +30,11 @@ const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
 });
 
 export default function GamePage() {
-  const [nickname] = useState("플레이어");
+  const [nickname] = useState(() => {
+    if (typeof window === "undefined") return "플레이어";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("nickname") || "플레이어";
+  });
   const {
     gameState,
     teacherState,
@@ -41,9 +45,11 @@ export default function GamePage() {
     submitDrawing,
   } = useGameLoop({ nickname, totalRounds: 5 });
 
+  const canvasRef = useRef<DrawingCanvasHandle>(null);
   const [timer, setTimer] = useState(60);
   const [showResult, setShowResult] = useState(false);
   const [latestResult, setLatestResult] = useState<RoundResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Timer countdown
   useEffect(() => {
@@ -55,7 +61,7 @@ export default function GamePage() {
     return () => clearInterval(interval);
   }, [gameState.status, gameState.currentRound]);
 
-  // Sound effects on teacher state changes
+  // Sound effects
   const prevTeacherStateRef = useRef(teacherState);
   useEffect(() => {
     const prev = prevTeacherStateRef.current;
@@ -66,13 +72,8 @@ export default function GamePage() {
     }
   }, [teacherState]);
 
-  useEffect(() => {
-    if (showRelief) playReliefSound();
-  }, [showRelief]);
-
-  useEffect(() => {
-    if (caught) playCaughtSound();
-  }, [caught]);
+  useEffect(() => { if (showRelief) playReliefSound(); }, [showRelief]);
+  useEffect(() => { if (caught) playCaughtSound(); }, [caught]);
 
   // Show result when round ends
   useEffect(() => {
@@ -83,15 +84,33 @@ export default function GamePage() {
   }, [gameState.results, gameState.currentRound]);
 
   const handleSubmit = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
     playSubmitSound();
-    const result = await submitDrawing();
+
+    // Export canvas as JPEG base64
+    let imageBase64: string | undefined;
+    try {
+      const img = await canvasRef.current?.exportImage();
+      if (img) imageBase64 = img;
+    } catch { /* use fallback score */ }
+
+    const result = await submitDrawing(imageBase64);
     if (result) {
       setLatestResult(result);
       setShowResult(true);
     }
-  }, [submitDrawing]);
+    setSubmitting(false);
+  }, [submitDrawing, submitting]);
 
-  // Border color based on state
+  // Clear canvas on new round
+  useEffect(() => {
+    if (gameState.currentRound) {
+      canvasRef.current?.clear();
+      setTimer(60);
+    }
+  }, [gameState.currentRound?.number]);
+
   const borderColor =
     teacherState === "danger"
       ? "var(--danger)"
@@ -101,7 +120,7 @@ export default function GamePage() {
       ? "var(--safe)"
       : "transparent";
 
-  // Lobby state: show start button
+  // === LOBBY ===
   if (gameState.status === "lobby") {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
@@ -136,7 +155,7 @@ export default function GamePage() {
     );
   }
 
-  // Result screen
+  // === RESULT ===
   if (showResult && latestResult) {
     return (
       <ResultScreen
@@ -148,14 +167,13 @@ export default function GamePage() {
         }}
         onPlayAgain={() => {
           setShowResult(false);
-          // Reset game (TODO: proper reset)
           window.location.reload();
         }}
       />
     );
   }
 
-  // Gameplay
+  // === GAMEPLAY ===
   return (
     <div
       className="flex flex-col min-h-screen max-w-[500px] mx-auto w-full"
@@ -164,7 +182,6 @@ export default function GamePage() {
         transition: "border-color 200ms ease-out",
       }}
     >
-      {/* Caught overlay */}
       <CaughtOverlay visible={caught} />
 
       {/* Top bar */}
@@ -189,14 +206,9 @@ export default function GamePage() {
       {gameState.currentRound && (
         <div
           className="text-center py-2 mx-2 mt-2 rounded-[4px]"
-          style={{
-            background: "#fff3cd",
-            border: "2px dashed var(--warning)",
-          }}
+          style={{ background: "#fff3cd", border: "2px dashed var(--warning)" }}
         >
-          <div className="text-[11px]" style={{ color: "#856404" }}>
-            이번 키워드
-          </div>
+          <div className="text-[11px]" style={{ color: "#856404" }}>이번 키워드</div>
           <div className="font-jua text-2xl">
             {gameState.currentRound.keyword.emoji} {gameState.currentRound.keyword.word}
           </div>
@@ -206,26 +218,18 @@ export default function GamePage() {
       {/* Drawing canvas */}
       <div className="mx-2 mt-2 flex-1">
         <DrawingCanvas
+          ref={canvasRef}
           locked={teacherState === "danger" || caught}
-          onEditorReady={(editor) => {
-            // Listen for pointer events to detect drawing
-            editor.on("event", (event) => {
-              if (event.type === "pointer" && event.name === "pointer_down") {
-                onStroke();
-              }
-            });
-          }}
+          onStroke={onStroke}
         />
       </div>
 
-      {/* Tell warning */}
+      {/* State feedback */}
       {teacherState === "tell" && (
         <div className="text-center py-1 font-jua text-sm animate-pulse" style={{ color: "var(--warning)" }}>
           ⚠️ 조심!
         </div>
       )}
-
-      {/* Relief feedback */}
       {showRelief && (
         <div className="text-center py-1 font-gaegu text-sm" style={{ color: "var(--safe)" }}>
           휴...
@@ -236,11 +240,11 @@ export default function GamePage() {
       <div className="p-2">
         <button
           onClick={handleSubmit}
-          disabled={caught || teacherState === "danger"}
+          disabled={caught || teacherState === "danger" || submitting}
           className="w-full text-white border-[3px] border-[var(--text)] rounded-[4px] p-3 font-jua text-lg disabled:opacity-50"
           style={{ background: "var(--danger)" }}
         >
-          제출하기 ✋
+          {submitting ? "선생님이 채점 중... 📝" : "제출하기 ✋"}
         </button>
       </div>
 
