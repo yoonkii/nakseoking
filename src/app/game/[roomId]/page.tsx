@@ -149,10 +149,15 @@ export default function GamePage() {
     setLatestResult(null);
   }, [resetGame]);
 
-  // Clear canvas on new round
+  // Clear canvas only when a NEW round starts (not on re-renders)
+  const lastClearedRound = useRef(0);
   useEffect(() => {
-    if (gameState.currentRound) canvasRef.current?.clear();
-  }, [gameState.currentRound?.number]);
+    if (gameState.currentRound && gameState.currentRound.number !== lastClearedRound.current) {
+      lastClearedRound.current = gameState.currentRound.number;
+      // Small delay to let tldraw fully initialize
+      setTimeout(() => canvasRef.current?.clear(), 100);
+    }
+  }, [gameState.currentRound]);
 
   const borderColor =
     teacherState === "danger" ? "var(--danger)"
@@ -283,7 +288,7 @@ export default function GamePage() {
       <div className="mx-2 mt-2 flex-1">
         <DrawingCanvas
           ref={canvasRef}
-          locked={teacherState === "danger" || caught}
+          dangerOverlay={teacherState === "danger" && !caught}
           onStroke={onStroke}
         />
       </div>

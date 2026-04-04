@@ -5,7 +5,8 @@ import "tldraw/tldraw.css";
 import { useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 
 interface DrawingCanvasProps {
-  locked?: boolean;
+  /** Visual warning overlay (doesn't block input) */
+  dangerOverlay?: boolean;
   onStroke?: () => void;
 }
 
@@ -16,10 +17,14 @@ export interface DrawingCanvasHandle {
 
 /**
  * tldraw canvas in hideUi mode with notebook styling.
- * Exposes exportImage() and clear() via ref.
+ *
+ * IMPORTANT: Never blocks pointer events. During DANGER state,
+ * shows a visual warning but the player CAN still draw.
+ * If they draw during DANGER, the game logic catches them.
+ * That's the whole tension of the game.
  */
 const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-  function DrawingCanvas({ locked = false, onStroke }, ref) {
+  function DrawingCanvas({ dangerOverlay = false, onStroke }, ref) {
     const editorRef = useRef<Editor | null>(null);
 
     useImperativeHandle(ref, () => ({
@@ -31,14 +36,12 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         if (shapes.length === 0) return null;
 
         try {
-          // Export all shapes as SVG, then convert to canvas for JPEG
           const svgResult = await editor.getSvgString(
             shapes.map((s) => s.id),
             { background: true, padding: 10 }
           );
           if (!svgResult) return null;
 
-          // Convert SVG to base64 JPEG via offscreen canvas
           return new Promise<string | null>((resolve) => {
             const img = new Image();
             img.onload = () => {
@@ -64,9 +67,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       clear() {
         const editor = editorRef.current;
         if (!editor) return;
-        const shapes = editor.getCurrentPageShapes();
-        if (shapes.length > 0) {
-          editor.deleteShapes(shapes.map((s) => s.id));
+        try {
+          const shapes = editor.getCurrentPageShapes();
+          if (shapes.length > 0) {
+            editor.deleteShapes(shapes.map((s) => s.id));
+          }
+          // Re-set draw tool in case it got deselected
+          editor.setCurrentTool("draw");
+        } catch {
+          // Ignore errors during clear
         }
       },
     }));
@@ -76,11 +85,18 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         editorRef.current = editor;
         editor.setCurrentTool("draw");
 
-        // Detect drawing activity
         if (onStroke) {
+          // Track pointer down AND pointer move (actual drawing strokes)
           editor.on("event", (event) => {
-            if (event.type === "pointer" && event.name === "pointer_down") {
-              onStroke();
+            if (
+              event.type === "pointer" &&
+              (event.name === "pointer_down" || event.name === "pointer_move") &&
+              editor.getInstanceState().isPenMode === false
+            ) {
+              // Only fire on actual drawing (pointer is down)
+              if (event.name === "pointer_down") {
+                onStroke();
+              }
             }
           });
         }
@@ -104,16 +120,23 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           style={{ borderLeft: "2px solid var(--margin-red)" }}
         />
 
-        {/* Lock overlay */}
-        {locked && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center"
-               style={{ background: "rgba(192, 57, 43, 0.15)" }}>
-            <span className="font-jua text-2xl" style={{ color: "var(--danger)" }}>🛑 멈춰!</span>
+        {/* Danger warning overlay - DOES NOT BLOCK INPUT */}
+        {dangerOverlay && (
+          <div
+            className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
+            style={{ background: "rgba(192, 57, 43, 0.08)" }}
+          >
+            <span
+              className="font-jua text-lg opacity-60 animate-pulse"
+              style={{ color: "var(--danger)" }}
+            >
+              🛑 선생님이 보고 있다!
+            </span>
           </div>
         )}
 
-        {/* tldraw canvas */}
-        <div className={`absolute inset-0 ${locked ? "pointer-events-none" : ""}`}>
+        {/* tldraw canvas - ALWAYS receives input */}
+        <div className="absolute inset-0">
           <Tldraw
             hideUi
             onMount={handleMount}

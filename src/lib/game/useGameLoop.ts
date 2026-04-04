@@ -28,6 +28,7 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
   const animFrameRef = useRef<number>(0);
   const lastProcessedEventRef = useRef<number>(-1);
   const submitDrawingRef = useRef<() => Promise<RoundResult | undefined>>(undefined!);
+  const teacherStateRef = useRef<TeacherState>("safe");
 
   // Start a new round
   const startRound = useCallback(() => {
@@ -55,6 +56,7 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     }));
 
     setTeacherState("safe");
+    teacherStateRef.current = "safe";
     setCaught(false);
     setShowRelief(false);
     setRoundTimedOut(false);
@@ -84,6 +86,7 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
 
       setTeacherState((prev) => {
         if (prev !== newState) {
+          teacherStateRef.current = newState;
           return newState;
         }
         return prev;
@@ -176,9 +179,14 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     }
   }, [roundTimedOut]);
 
-  // Record stroke activity
+  // Record stroke activity — if drawing during DANGER, get caught!
   const onStroke = useCallback(() => {
     lastStrokeTimeRef.current = Date.now();
+
+    // Drawing during DANGER = caught immediately
+    if (teacherStateRef.current === "danger") {
+      setCaught(true);
+    }
 
     setGameState((prev) => ({
       ...prev,
