@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Jua, Gaegu } from "next/font/google";
 import localFont from "next/font/local";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import "./globals.css";
 
 const jua = Jua({
@@ -57,7 +58,7 @@ export default function RootLayout({
       className={`${jua.variable} ${gaegu.variable} ${pretendard.variable} h-full`}
     >
       <body className="min-h-full flex flex-col bg-[#faf6e8] text-[#333] font-pretendard">
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </body>
     </html>
   );

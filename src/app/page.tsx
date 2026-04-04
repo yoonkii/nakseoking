@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import StatsBadge from "@/components/game/StatsBadge";
 
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -63,6 +64,8 @@ export default function Home() {
       <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
         선생님 몰래 낙서 배틀!
       </p>
+
+      <StatsBadge />
 
       <input
         type="text"

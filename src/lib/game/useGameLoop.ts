@@ -121,6 +121,30 @@ export function useGameLoop({ nickname, totalRounds = 5 }: UseGameLoopOptions) {
     };
   }, [gameState.status, gameState.currentRound, roundStartTime]);
 
+  // Simulate bot activity (drawing/stopped) based on teacher state
+  useEffect(() => {
+    if (gameState.status !== "playing") return;
+
+    const interval = setInterval(() => {
+      setGameState((prev) => ({
+        ...prev,
+        players: prev.players.map((p) => {
+          if (p.id === "local" || p.status === "out") return p;
+          // Bots stop during danger, draw during safe
+          if (teacherState === "danger") {
+            // Some bots get caught (30% chance per danger event)
+            return { ...p, activity: "stopped" as PlayerActivity };
+          }
+          // Random activity during safe/tell
+          const drawing = Math.random() > 0.3;
+          return { ...p, activity: (drawing ? "drawing" : "stopped") as PlayerActivity };
+        }),
+      }));
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [gameState.status, teacherState]);
+
   // Relief feedback: danger → safe transition
   useEffect(() => {
     if (teacherState === "safe") {
