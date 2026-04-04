@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { RoundResult } from "@/lib/game/types";
 import { playVictorySound, playScoreRevealSound, playOutBuzzer } from "@/lib/game/sounds";
 
@@ -11,29 +11,39 @@ interface ScoringRevealProps {
 
 /**
  * One-by-one reveal of each player's drawing + score.
- * Shows each player for ~3 seconds with a dramatic score reveal.
+ * Each player gets ~3.5 seconds: 1.5s buildup → score reveal → 2s to read.
  */
 export default function ScoringReveal({ result, onComplete }: ScoringRevealProps) {
-  const [currentIndex, setCurrentIndex] = useState(-1); // -1 = intro
-  const [showScore, setShowScore] = useState(false);
-  const [done, setDone] = useState(false);
+  const [phase, setPhase] = useState<"intro" | "revealing" | "done">("intro");
+  const [revealIndex, setRevealIndex] = useState(0);
+  const [scoreVisible, setScoreVisible] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const rankings = result.rankings;
 
+  // Intro → start revealing after 1.5s
   useEffect(() => {
-    // Start with intro
-    const introTimer = setTimeout(() => setCurrentIndex(0), 1500);
-    return () => clearTimeout(introTimer);
-  }, []);
+    if (phase !== "intro") return;
+    const t = setTimeout(() => setPhase("revealing"), 1500);
+    return () => clearTimeout(t);
+  }, [phase]);
 
+  // Revealing: show score after 1.5s, advance after 3.5s
   useEffect(() => {
-    if (currentIndex < 0 || currentIndex >= rankings.length) return;
+    if (phase !== "revealing") return;
+    if (revealIndex >= rankings.length) {
+      setPhase("done");
+      playVictorySound();
+      const t = setTimeout(() => onCompleteRef.current(), 2500);
+      return () => clearTimeout(t);
+    }
 
-    // Show the player for 1.5s, then reveal score with sound
-    setShowScore(false);
+    setScoreVisible(false);
+
     const scoreTimer = setTimeout(() => {
-      setShowScore(true);
-      const player = rankings[currentIndex];
+      setScoreVisible(true);
+      const player = rankings[revealIndex];
       if (player.caught) {
         playOutBuzzer();
       } else {
@@ -41,28 +51,18 @@ export default function ScoringReveal({ result, onComplete }: ScoringRevealProps
       }
     }, 1500);
 
-    // Move to next player after 3s
-    const nextTimer = setTimeout(() => {
-      if (currentIndex < rankings.length - 1) {
-        setCurrentIndex((i) => i + 1);
-      } else {
-        setDone(true);
-        playVictorySound();
-        // Wait for victory moment, then complete
-        setTimeout(onComplete, 2000);
-      }
-    }, 3000);
+    const advanceTimer = setTimeout(() => {
+      setRevealIndex((i) => i + 1);
+    }, 3500);
 
     return () => {
       clearTimeout(scoreTimer);
-      clearTimeout(nextTimer);
+      clearTimeout(advanceTimer);
     };
-  }, [currentIndex, rankings.length, onComplete]);
+  }, [phase, revealIndex, rankings]);
 
-  const current = currentIndex >= 0 ? rankings[currentIndex] : null;
-
-  // Intro screen
-  if (currentIndex < 0) {
+  // === INTRO ===
+  if (phase === "intro") {
     return (
       <div className="fixed inset-0 z-30 flex items-center justify-center"
            style={{ background: "rgba(250, 246, 232, 0.95)" }}>
@@ -77,8 +77,8 @@ export default function ScoringReveal({ result, onComplete }: ScoringRevealProps
     );
   }
 
-  // Done - show winner
-  if (done) {
+  // === DONE ===
+  if (phase === "done") {
     const winner = rankings[0];
     const allCaught = rankings.every((r) => r.caught);
     return (
@@ -104,82 +104,87 @@ export default function ScoringReveal({ result, onComplete }: ScoringRevealProps
     );
   }
 
-  // Individual reveal
+  // === REVEALING ===
+  const current = rankings[revealIndex];
   if (!current) return null;
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center"
          style={{ background: "rgba(250, 246, 232, 0.95)" }}>
       <div className="text-center max-w-[400px] w-full px-6">
-        {/* Progress dots */}
+        {/* Progress */}
         <div className="flex justify-center gap-2 mb-6">
           {rankings.map((_, i) => (
             <div
               key={i}
-              className="w-2 h-2 rounded-full"
+              className="w-2.5 h-2.5 rounded-full border border-[var(--text)]"
               style={{
-                background: i < currentIndex ? "var(--safe)"
-                  : i === currentIndex ? "var(--text)"
-                  : "var(--line)",
+                background: i < revealIndex ? "var(--safe)"
+                  : i === revealIndex ? "var(--warning)"
+                  : "var(--surface)",
               }}
             />
           ))}
         </div>
 
-        {/* Player name */}
+        {/* Player */}
         <div className="font-jua text-xl mb-4">
-          {current.nickname}의 그림
+          {current.nickname}의 작품
         </div>
 
-        {/* Drawing placeholder (in multiplayer, show actual image) */}
+        {/* Drawing area */}
         <div
           className="border-[3px] border-[var(--text)] rounded-[4px] bg-white mx-auto mb-4 flex items-center justify-center"
-          style={{ width: 200, height: 150 }}
+          style={{ width: 220, height: 160 }}
         >
           {current.caught ? (
             <div className="text-center">
               <div className="text-4xl">🫣</div>
-              <div className="text-xs mt-1" style={{ color: "var(--danger)" }}>걸려서 못 그림!</div>
+              <div className="text-xs mt-2" style={{ color: "var(--danger)" }}>
+                걸려서 못 그렸어요!
+              </div>
             </div>
           ) : (
             <div className="text-center">
-              <div className="text-4xl">🎨</div>
-              <div className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-                {result.keyword}
+              <div className="text-5xl mb-1">🎨</div>
+              <div className="font-gaegu text-lg" style={{ color: "var(--muted)" }}>
+                &ldquo;{result.keyword}&rdquo;
               </div>
             </div>
           )}
         </div>
 
-        {/* Score reveal */}
-        {showScore && (
+        {/* Score */}
+        {scoreVisible ? (
           <div style={{ animation: "game-bounce 0.3s ease-out" }}>
             {current.caught ? (
               <div>
-                <div className="font-jua text-2xl" style={{ color: "var(--danger)" }}>
-                  ❌ 아웃!
-                </div>
-                <div className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-                  선생님한테 걸렸습니다
+                <div className="font-jua text-2xl" style={{ color: "var(--danger)" }}>❌ 아웃!</div>
+                <div className="text-sm mt-1 font-gaegu" style={{ color: "var(--muted)" }}>
+                  선생님한테 들켰습니다
                 </div>
               </div>
             ) : (
               <div>
-                <div className="font-jua text-3xl" style={{
+                <div className="font-jua text-4xl" style={{
                   color: current.score >= 7 ? "var(--safe)"
                     : current.score >= 5 ? "var(--warning)"
                     : "var(--danger)",
                 }}>
                   {current.score.toFixed(1)}점
                 </div>
-                <div className="text-sm mt-1 font-gaegu" style={{ color: "var(--muted)" }}>
-                  {current.score >= 8 ? "선생님: 오, 잘 그렸네!"
-                    : current.score >= 6 ? "선생님: 음... 그럭저럭?"
-                    : current.score >= 5 ? "선생님: 좀 더 노력해봐"
-                    : "선생님: 이게 뭐야! 엎드려 뻗쳐!"}
+                <div className="text-sm mt-2 font-gaegu" style={{ color: "var(--muted)" }}>
+                  {current.score >= 8 ? "선생님: 오, 잘 그렸네! 👏"
+                    : current.score >= 6 ? "선생님: 음... 그럭저럭? 🤔"
+                    : current.score >= 5 ? "선생님: 좀 더 노력해봐 😐"
+                    : "선생님: 이게 뭐야! 엎드려 뻗쳐! 😡"}
                 </div>
               </div>
             )}
+          </div>
+        ) : (
+          <div className="font-jua text-lg animate-pulse" style={{ color: "var(--muted)" }}>
+            채점 중...
           </div>
         )}
       </div>
