@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
 
   if (!apiKey) {
     // Fallback: mock evaluation when no API key configured
+    console.log("[evaluate] No GEMINI_API_KEY set, using mock");
     console.warn("GEMINI_API_KEY not set, using mock evaluation");
     const mockScore = 5 + Math.random() * 5;
     return NextResponse.json({
@@ -31,6 +32,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log(`[evaluate] Gemini call: keyword="${keyword}", image size=${imageBase64.length} chars`);
 
     // Check for blank canvas (very small base64 = likely empty)
     if (imageBase64.length < 500) {

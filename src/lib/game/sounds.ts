@@ -56,52 +56,72 @@ export function playChalkSound(duration = 0.3): void {
 }
 
 /**
- * Warning beep (during TELL state).
- * Short, subtle beep to alert player.
+ * "도-도-솔!" warning signal (during TELL state).
+ * Musical pattern: C-C-G ascending, like a teacher's warning chant.
+ * Speed is randomized each time (fast = scary, slow = tense buildup).
  */
 export function playWarningSound(): void {
   if (!shouldPlaySound()) return;
   const ctx = getAudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
 
-  osc.type = "sine";
-  osc.frequency.value = 440;
+  // C4=262, G4=392. "도-도-솔!"
+  const notes = [262, 262, 392];
+  // Random speed: fast (80ms) to slow (200ms) per note
+  const noteGap = 80 + Math.random() * 120;
 
-  gain.gain.setValueAtTime(0.2, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
 
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.15);
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+
+    const startTime = ctx.currentTime + i * (noteGap / 1000);
+    const duration = noteGap / 1000 * 0.8;
+
+    gain.gain.setValueAtTime(0.25, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  });
 }
 
 /**
- * Danger sound (teacher turns around).
- * Sharp, alarming tone.
+ * Danger sound (teacher fully turns around).
+ * Sharp "BANG!" — one loud staccato hit.
  */
 export function playDangerSound(): void {
   if (!shouldPlaySound()) return;
   const ctx = getAudioContext();
 
-  // Two-tone alarm
-  for (let i = 0; i < 2; i++) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+  // Low thump + high snap together = "야!"
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  const gain2 = ctx.createGain();
 
-    osc.type = "square";
-    osc.frequency.value = i === 0 ? 600 : 800;
+  osc1.type = "square";
+  osc1.frequency.value = 150; // low thump
+  osc2.type = "sawtooth";
+  osc2.frequency.value = 800; // high snap
 
-    const startTime = ctx.currentTime + i * 0.12;
-    gain.gain.setValueAtTime(0.25, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.1);
+  gain1.gain.setValueAtTime(0.35, ctx.currentTime);
+  gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+  gain2.gain.setValueAtTime(0.2, ctx.currentTime);
+  gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(startTime);
-    osc.stop(startTime + 0.1);
-  }
+  osc1.connect(gain1);
+  gain1.connect(ctx.destination);
+  osc2.connect(gain2);
+  gain2.connect(ctx.destination);
+
+  osc1.start();
+  osc1.stop(ctx.currentTime + 0.15);
+  osc2.start();
+  osc2.stop(ctx.currentTime + 0.08);
 }
 
 /**
@@ -175,6 +195,61 @@ export function playSubmitSound(): void {
     osc.start(startTime);
     osc.stop(startTime + 0.15);
   });
+}
+
+/**
+ * Score reveal sound. Pitch changes based on score.
+ */
+export function playScoreRevealSound(score: number): void {
+  if (!shouldPlaySound()) return;
+  const ctx = getAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = "sine";
+  // Higher score = higher pitch (happier sound)
+  osc.frequency.value = score >= 7 ? 523 : score >= 5 ? 392 : 220;
+
+  gain.gain.setValueAtTime(0.2, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.3);
+
+  // For high scores, add a cheerful second note
+  if (score >= 7) {
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.value = 659; // E5
+    gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 0.4);
+  }
+}
+
+/**
+ * Buzzer for caught/out during scoring reveal.
+ */
+export function playOutBuzzer(): void {
+  if (!shouldPlaySound()) return;
+  const ctx = getAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.value = 100;
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.4);
 }
 
 /**

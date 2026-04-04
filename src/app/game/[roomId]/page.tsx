@@ -8,6 +8,7 @@ import PlayerBar from "@/components/game/PlayerBar";
 import CaughtOverlay from "@/components/game/CaughtOverlay";
 import CountdownOverlay from "@/components/game/CountdownOverlay";
 import ScoringOverlay from "@/components/game/ScoringOverlay";
+import ScoringReveal from "@/components/game/ScoringReveal";
 import ShareCode from "@/components/game/ShareCode";
 import ResultScreen from "@/components/game/ResultScreen";
 import { useGameLoop } from "@/lib/game/useGameLoop";
@@ -46,7 +47,7 @@ export default function GamePage() {
   const [showResult, setShowResult] = useState(false);
   const [latestResult, setLatestResult] = useState<RoundResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [phase, setPhase] = useState<"lobby" | "countdown" | "playing" | "result">("lobby");
+  const [phase, setPhase] = useState<"lobby" | "countdown" | "playing" | "scoring" | "result">("lobby");
   const [pendingKeyword, setPendingKeyword] = useState<{ word: string; emoji: string } | null>(null);
   const [pendingRoundNum, setPendingRoundNum] = useState(1);
 
@@ -97,11 +98,11 @@ export default function GamePage() {
   useEffect(() => { if (showRelief && phase === "playing") playReliefSound(); }, [showRelief, phase]);
   useEffect(() => { if (caught) playCaughtSound(); }, [caught]);
 
-  // Detect round end
+  // Detect round end → go to scoring reveal first
   useEffect(() => {
     if (gameState.results.length > 0 && !gameState.currentRound && phase === "playing") {
       setLatestResult(gameState.results[gameState.results.length - 1]);
-      setPhase("result");
+      setPhase("scoring");
     }
   }, [gameState.results, gameState.currentRound, phase]);
 
@@ -229,6 +230,16 @@ export default function GamePage() {
         keyword={pendingKeyword}
         roundNumber={pendingRoundNum}
         onComplete={handleCountdownDone}
+      />
+    );
+  }
+
+  // === SCORING REVEAL ===
+  if (phase === "scoring" && latestResult) {
+    return (
+      <ScoringReveal
+        result={latestResult}
+        onComplete={() => setPhase("result")}
       />
     );
   }
