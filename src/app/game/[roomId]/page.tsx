@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import Chalkboard from "@/components/game/Chalkboard";
 import PlayerBar from "@/components/game/PlayerBar";
 import CaughtOverlay from "@/components/game/CaughtOverlay";
@@ -11,6 +10,7 @@ import ScoringOverlay from "@/components/game/ScoringOverlay";
 import ScoringReveal from "@/components/game/ScoringReveal";
 import ShareCode from "@/components/game/ShareCode";
 import ResultScreen from "@/components/game/ResultScreen";
+import DrawingCanvas from "@/components/game/DrawingCanvas";
 import { useGameLoop } from "@/lib/game/useGameLoop";
 import type { RoundResult } from "@/lib/game/types";
 import type { DrawingCanvasHandle } from "@/components/game/DrawingCanvas";
@@ -19,15 +19,6 @@ import {
   playWarningSound, playDangerSound, playReliefSound,
   playCaughtSound, playSubmitSound, unlockAudio,
 } from "@/lib/game/sounds";
-
-const DrawingCanvas = dynamic(() => import("@/components/game/DrawingCanvas"), {
-  ssr: false,
-  loading: () => (
-    <div className="border-[3px] border-[var(--text)] rounded-[4px] bg-white flex items-center justify-center" style={{ height: 200 }}>
-      <span style={{ color: "var(--muted)" }}>캔버스 준비 중...</span>
-    </div>
-  ),
-});
 
 export default function GamePage() {
   const params = useParams();
